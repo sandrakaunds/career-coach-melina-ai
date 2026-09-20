@@ -700,34 +700,22 @@ app.post("/api/dev/unlock", async (req, res) => {
 // START SERVER
 // ======================================
 
-app.listen(PORT, () => {
+// ======================================
+// START SERVER
+// ======================================
+
+app.listen(PORT, "0.0.0.0", () => {
   console.log("");
   console.log("======================================");
   console.log("        MELINA AI BACKEND");
   console.log("======================================");
-  console.log(
-    `Server running at http://localhost:${PORT}`
-  );
-  console.log(
-    "Gemini API connection is configured."
-  );
-  console.log(
-    "Supabase database connection is configured."
-  );
-  console.log(
-    "Automatic Gemini retry is enabled."
-  );
+  console.log(`Server running on port ${PORT}`);
+  console.log("Gemini API connection is configured.");
+  console.log("Supabase database connection is configured.");
+  console.log("Automatic Gemini retry is enabled.");
   console.log("");
-  console.log(
-    `Free conversations: ${FREE_CONVERSATIONS}`
-  );
-  console.log(
-    "India: ₹499 → 25 conversations"
-  );
-  console.log(
-    "International: $12 → 70 conversations"
-  );
+  console.log(`Free conversations: ${FREE_CONVERSATIONS}`);
+  console.log("India: ₹499 → 25 conversations");
+  console.log("International: $12 → 70 conversations");
   console.log("======================================");
 });
-
-
