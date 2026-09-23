@@ -3,7 +3,7 @@ import "./App.css";
 
 
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+"https://9b4jhz72ad.execute-api.ap-south-1.amazonaws.com";
 
 const inputStyle = {
   width: "100%",

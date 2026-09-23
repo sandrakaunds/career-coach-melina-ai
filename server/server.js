@@ -1,35 +1,64 @@
 
 import process from "node:process";
 import crypto from "node:crypto";
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import serverless from "serverless-http";
+
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
+// ======================================
+// ENVIRONMENT VARIABLES
+// ======================================
+
 if (!process.env.GEMINI_API_KEY) {
-  console.error("❌ GEMINI_API_KEY is missing from .env");
-  process.exit(1);
+  console.error("❌ GEMINI_API_KEY is missing");
 }
 
 if (!process.env.SUPABASE_URL) {
-  console.error("❌ SUPABASE_URL is missing from .env");
-  process.exit(1);
+  console.error("❌ SUPABASE_URL is missing");
 }
 
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("❌ SUPABASE_SERVICE_ROLE_KEY is missing from .env");
-  process.exit(1);
+  console.error("❌ SUPABASE_SERVICE_ROLE_KEY is missing");
 }
 
-console.log("✅ GEMINI_API_KEY found");
-console.log("✅ SUPABASE_URL found");
-console.log("✅ SUPABASE_SERVICE_ROLE_KEY found");
+console.log("======================================");
+console.log("        MELINA AI AWS LAMBDA");
+console.log("======================================");
+
+console.log(
+  process.env.GEMINI_API_KEY
+    ? "✅ GEMINI_API_KEY found"
+    : "❌ GEMINI_API_KEY missing"
+);
+
+console.log(
+  process.env.SUPABASE_URL
+    ? "✅ SUPABASE_URL found"
+    : "❌ SUPABASE_URL missing"
+);
+
+console.log(
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? "✅ SUPABASE_SERVICE_ROLE_KEY found"
+    : "❌ SUPABASE_SERVICE_ROLE_KEY missing"
+);
+
+// ======================================
+// EXPRESS APP
+// ======================================
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+
+// ======================================
+// CONSTANTS
+// ======================================
 
 const FREE_CONVERSATIONS = 3;
 
@@ -47,16 +76,31 @@ const PAID_PLANS = {
   },
 };
 
+// ======================================
+// SUPABASE
+// ======================================
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// ======================================
+// GEMINI
+// ======================================
+
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-const MODELS = ["gemini-3.6-flash"];
+// Change this if your Gemini project uses another model.
+const MODELS = [
+  process.env.GEMINI_MODEL || "gemini-2.5-flash",
+];
+
+// ======================================
+// MIDDLEWARE
+// ======================================
 
 app.use(
   cors({
@@ -66,7 +110,6 @@ app.use(
 );
 
 app.use(express.json());
-
 
 // ======================================
 // HELPER FUNCTIONS
@@ -93,13 +136,18 @@ async function getVisitorFromRequest(req) {
   return data || null;
 }
 
+// ======================================
+// PLAN BY COUNTRY
+// ======================================
 
 function getPlanForCountry(country) {
   if (!country) {
     return PAID_PLANS.INTERNATIONAL;
   }
 
-  const normalizedCountry = country.trim().toLowerCase();
+  const normalizedCountry = country
+    .trim()
+    .toLowerCase();
 
   if (
     normalizedCountry === "india" ||
@@ -111,6 +159,9 @@ function getPlanForCountry(country) {
   return PAID_PLANS.INTERNATIONAL;
 }
 
+// ======================================
+// ACCESS INFORMATION
+// ======================================
 
 function getAccessInfo(visitor) {
   const freeUsed = Number(visitor.free_used || 0);
@@ -153,7 +204,6 @@ function getAccessInfo(visitor) {
   };
 }
 
-
 // ======================================
 // GEMINI RETRY
 // ======================================
@@ -168,10 +218,11 @@ async function generateWithRetry(prompt) {
           `Calling Gemini model: ${model}, attempt ${attempt}`
         );
 
-        const response = await ai.models.generateContent({
-          model,
-          contents: prompt,
-        });
+        const response =
+          await ai.models.generateContent({
+            model,
+            contents: prompt,
+          });
 
         return response;
       } catch (error) {
@@ -192,23 +243,27 @@ async function generateWithRetry(prompt) {
   throw lastError;
 }
 
-
 // ======================================
 // HOME
 // ======================================
 
 app.get("/", (req, res) => {
-  res.send("Melina AI Backend is running!");
+  res.json({
+    message: "Melina AI Backend is running!",
+    platform: "AWS Lambda",
+    status: "online",
+  });
 });
 
-
 // ======================================
-// SUPABASE DATABASE TEST
+// DATABASE TEST
 // ======================================
 
 app.get("/api/database-test", async (req, res) => {
   try {
-    console.log("Testing Supabase connection...");
+    console.log(
+      "Testing Supabase connection..."
+    );
 
     const { data, error } = await supabase
       .from("visitors")
@@ -253,7 +308,6 @@ app.get("/api/database-test", async (req, res) => {
   }
 });
 
-
 // ======================================
 // REGISTER
 // ======================================
@@ -269,12 +323,14 @@ app.post("/api/register", async (req, res) => {
 
     if (!name || !email || !phone || !country) {
       return res.status(400).json({
-        error: "Name, email, phone and country are required.",
+        error:
+          "Name, email, phone and country are required.",
       });
     }
 
     const cleanName = name.trim();
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail =
+      email.trim().toLowerCase();
     const cleanPhone = phone.trim();
     const cleanCountry = country.trim();
 
@@ -283,7 +339,8 @@ app.post("/api/register", async (req, res) => {
 
     if (!emailRegex.test(cleanEmail)) {
       return res.status(400).json({
-        error: "Please enter a valid email address.",
+        error:
+          "Please enter a valid email address.",
       });
     }
 
@@ -303,15 +360,14 @@ app.post("/api/register", async (req, res) => {
       free_used: 0,
 
       paid_access: false,
-
       paid_used: 0,
-
       paid_limit: paidPlan.conversations,
 
       paid_plan: {
         price: paidPlan.price,
         currency: paidPlan.currency,
-        conversations: paidPlan.conversations,
+        conversations:
+          paidPlan.conversations,
       },
     };
 
@@ -349,7 +405,6 @@ app.post("/api/register", async (req, res) => {
     });
   }
 });
-
 
 // ======================================
 // UPDATE PROFILE
@@ -444,11 +499,11 @@ app.patch("/api/profile", async (req, res) => {
     );
 
     return res.status(500).json({
-      error: "Profile update failed.",
+      error:
+        "Profile update failed.",
     });
   }
 });
-
 
 // ======================================
 // ACCESS
@@ -475,11 +530,11 @@ app.get("/api/access", async (req, res) => {
     );
 
     return res.status(500).json({
-      error: "Unable to load access information.",
+      error:
+        "Unable to load access information.",
     });
   }
 });
-
 
 // ======================================
 // CHAT
@@ -515,17 +570,24 @@ app.post("/api/chat", async (req, res) => {
 
     let usageType = null;
 
+    // FREE ACCESS
     if (
       !visitor.paid_access &&
       freeUsed < FREE_CONVERSATIONS
     ) {
       usageType = "free";
-    } else if (
+    }
+
+    // PAID ACCESS
+    else if (
       visitor.paid_access &&
       paidUsed < paidLimit
     ) {
       usageType = "paid";
-    } else {
+    }
+
+    // NO ACCESS
+    else {
       return res.status(402).json({
         error:
           "Your available conversations have been used.",
@@ -537,6 +599,7 @@ app.post("/api/chat", async (req, res) => {
 You are Melina AI, a professional career coach.
 
 Help the user with:
+
 - Career planning
 - Resume improvement
 - Interview preparation
@@ -553,6 +616,7 @@ User name: ${visitor.name}
 Country: ${visitor.country}
 
 User message:
+
 ${message.trim()}
 `;
 
@@ -622,100 +686,127 @@ ${message.trim()}
   }
 });
 
-
 // ======================================
 // DEVELOPMENT UNLOCK
 // ======================================
 
-app.post("/api/dev/unlock", async (req, res) => {
-  try {
-    const visitor =
-      await getVisitorFromRequest(req);
+app.post(
+  "/api/dev/unlock",
+  async (req, res) => {
+    try {
+      const visitor =
+        await getVisitorFromRequest(req);
 
-    if (!visitor) {
-      return res.status(404).json({
-        error: "Visitor not found.",
-      });
-    }
+      if (!visitor) {
+        return res.status(404).json({
+          error: "Visitor not found.",
+        });
+      }
 
-    const paidPlan =
-      getPlanForCountry(
-        visitor.country
-      );
+      const paidPlan =
+        getPlanForCountry(
+          visitor.country
+        );
 
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("visitors")
-      .update({
-        paid_access: true,
-        paid_used: 0,
-        paid_limit:
-          paidPlan.conversations,
-        paid_plan: {
-          price: paidPlan.price,
-          currency: paidPlan.currency,
-          conversations:
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("visitors")
+        .update({
+          paid_access: true,
+
+          paid_used: 0,
+
+          paid_limit:
             paidPlan.conversations,
-        },
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq(
-        "visitor_id",
-        visitor.visitor_id
-      )
-      .select("*")
-      .single();
 
-    if (error) {
+          paid_plan: {
+            price: paidPlan.price,
+            currency: paidPlan.currency,
+            conversations:
+              paidPlan.conversations,
+          },
+
+          updated_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "visitor_id",
+          visitor.visitor_id
+        )
+        .select("*")
+        .single();
+
+      if (error) {
+        console.error(
+          "❌ Unlock error:",
+          error
+        );
+
+        return res.status(500).json({
+          error: error.message,
+        });
+      }
+
+      return res.json(
+        getAccessInfo(data)
+      );
+    } catch (error) {
       console.error(
-        "❌ Unlock error:",
+        "❌ Unlock exception:",
         error
       );
 
       return res.status(500).json({
-        error: error.message,
+        error: "Unlock failed.",
       });
     }
-
-    return res.json(
-      getAccessInfo(data)
-    );
-  } catch (error) {
-    console.error(
-      "❌ Unlock exception:",
-      error
-    );
-
-    return res.status(500).json({
-      error: "Unlock failed.",
-    });
   }
-});
-
-
-// ======================================
-// START SERVER
-// ======================================
+);
 
 // ======================================
-// START SERVER
+// AWS LAMBDA HANDLER
 // ======================================
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("");
-  console.log("======================================");
-  console.log("        MELINA AI BACKEND");
-  console.log("======================================");
-  console.log(`Server running on port ${PORT}`);
-  console.log("Gemini API connection is configured.");
-  console.log("Supabase database connection is configured.");
-  console.log("Automatic Gemini retry is enabled.");
-  console.log("");
-  console.log(`Free conversations: ${FREE_CONVERSATIONS}`);
-  console.log("India: ₹499 → 25 conversations");
-  console.log("International: $12 → 70 conversations");
-  console.log("======================================");
-});
+// IMPORTANT:
+// Do NOT use app.listen() in AWS Lambda.
+
+export const handler = serverless(app);
+
+// ======================================
+// LOCAL DEVELOPMENT
+// ======================================
+
+// This section allows the same file to run
+// locally with:
+// npm run dev
+//
+// AWS Lambda will use the handler above.
+
+if (process.env.AWS_LAMBDA_FUNCTION_NAME === undefined) {
+  const PORT = process.env.PORT || 5000;
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log("");
+    console.log("======================================");
+    console.log("        MELINA AI BACKEND");
+    console.log("======================================");
+    console.log(`Local server: http://localhost:${PORT}`);
+    console.log("Gemini API connection configured.");
+    console.log("Supabase database connection configured.");
+    console.log("Automatic Gemini retry enabled.");
+    console.log("");
+    console.log(
+      `Free conversations: ${FREE_CONVERSATIONS}`
+    );
+    console.log(
+      "India: ₹499 → 25 conversations"
+    );
+    console.log(
+      "International: $12 → 70 conversations"
+    );
+    console.log("======================================");
+  });
+}
+

@@ -1,0 +1,34 @@
+
+service: melina-ai-backend
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: ap-south-1
+
+  environment:
+    LAMBDA_MODE: "true"
+    GEMINI_API_KEY: ${env:GEMINI_API_KEY}
+    SUPABASE_URL: ${env:SUPABASE_URL}
+    SUPABASE_SERVICE_ROLE_KEY: ${env:SUPABASE_SERVICE_ROLE_KEY}
+
+functions:
+  api:
+    handler: server.handler
+    timeout: 29
+
+    events:
+      - httpApi:
+          path: /
+          method: ANY
+
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+
+package:
+  patterns:
+    - "!.env"
+    - "!.git/**"
+    - "!node_modules/.cache/**"
+
